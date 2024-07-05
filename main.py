@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from pytube import YouTube
 import re
 
@@ -7,7 +7,7 @@ app = Flask(__name__)
 def download_video(url, resolution):
     try:
         yt = YouTube(url)
-        stream = yt.streams.filter(progressive=True, file_extension='mp4', resolution=resolution).first()
+        stream = yt.streams.filter(resolution=resolution).first()
         if stream:
             stream.download()
             return True, None
@@ -19,22 +19,36 @@ def download_video(url, resolution):
 def get_video_info(url):
     try:
         yt = YouTube(url)
-        stream = yt.streams.first()
+        streams = yt.streams
         video_info = {
             "title": yt.title,
             "author": yt.author,
             "length": yt.length,
             "views": yt.views,
             "description": yt.description,
-            "publish_date": yt.publish_date,
+            "publish_date": f"{yt.publish_date.day}/{yt.publish_date.month}/{yt.publish_date.year}",
+            "resolutions": extract_available_resolutions(streams)
         }
         return video_info, None
     except Exception as e:
         return None, str(e)
 
+def extract_available_resolutions(streams):
+    all_res = {}
+    for stream in streams:
+        res = stream.resolution
+        size = stream.filesize_mb
+        if res:
+            all_res.setdefault(res, size)
+    return all_res
+
 def is_valid_youtube_url(url):
     pattern = r"^(https?://)?(www\.)?youtube\.com/watch\?v=[\w-]+(&\S*)?$"
     return re.match(pattern, url) is not None
+
+@app.route('/', methods=['GET'])
+def home():
+    return render_template("index.html")
 
 @app.route('/download/<resolution>', methods=['POST'])
 def download_by_resolution(resolution):
